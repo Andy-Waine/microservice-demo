@@ -207,12 +207,31 @@
     <pre id="statusResult"></pre>
   </div>
 
+  <div class="section">
+    <h2>SAGA Design Pattern & Compensating Transactions</h2>
+    <p>
+      SAGA is a microservices design pattern in which a business process is broken down into
+      isolated transactions that each commit to their own database. To ensure data integrity across databases,
+      we need to mitigate failures via compensating transactions that trigger on errors or process failures. This example will
+      generate a compensating transaction when items are ordered that are not in stock, and update order status accordingly.
+    </p>
+    <label>
+      Update inventory with the contents of the items JSON above - check status after an order to see if the update succeeded.
+      Our default inventory contains two of each item. Submit an order with more to trigger an error.
+    </label>
+    <button id="updateInventoryBtn">Update Inventory</button>
+    <h3>Update Inventory Result</h3>
+    <pre id="updateInventoryResult"></pre>
+  </div>
+
   <script>
     const placeOrderBtn = document.getElementById('placeOrderBtn');
     const placeOrderResult = document.getElementById('placeOrderResult');
     const statusResult = document.getElementById('statusResult');
     const orderIdInput = document.getElementById('orderIdInput');
     const itemsTextarea = document.getElementById('itemsJson');
+    const updateInventoryBtn = document.getElementById('updateInventoryBtn');
+    const updateInventoryResult = document.getElementById('updateInventoryResult');
 
     // Build Items JSON from the menu quantities
     function updateItemsJsonFromMenu() {
@@ -286,6 +305,36 @@
         statusResult.textContent = JSON.stringify(data, null, 2);
       } catch (e) {
         statusResult.textContent = 'Error checking status: ' + e.message;
+      }
+    });
+
+    updateInventoryBtn.addEventListener('click', async () => {
+      updateInventoryResult.textContent = 'Updating inventory...';
+      updateInventoryResult.textContent = '';
+
+      const orderId = orderIdInput.value.trim();
+      const itemsText = itemsTextarea.value;
+
+      let items;
+      try {
+        items = JSON.parse(itemsText);
+      } catch (e) {
+        updateInventoryResult.textContent = 'Invalid JSON in Items field';
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/inventory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId, items })
+        });
+
+        const data = await res.json();
+        updateInventoryResult.textContent = JSON.stringify(data, null, 2);
+
+      } catch (e) {
+        updateInventoryResult.textContent = 'Error updating inventory: ' + e.message;
       }
     });
   </script>
