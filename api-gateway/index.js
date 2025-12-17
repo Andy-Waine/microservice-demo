@@ -33,8 +33,12 @@ async function start() {
     topic: "orders-confirmed",
     fromBeginning: true,
   });
+  await consumer.subscribe({
+    topic: "inventory-error",
+    fromBeginning: true,
+  });
 
-  // Listen for OrderConfirmed events to update status
+  // Listen for OrderConfirmed and InventoryError events to update status
   await consumer.run({
     eachMessage: async ({ topic, partition, message }) => {
       const value = message.value.toString();
@@ -44,6 +48,13 @@ async function start() {
       if (event.type === "OrderConfirmed") {
         orderStatus[event.orderId] = {
           status: "CONFIRMED",
+          details: event,
+        };
+      }
+
+      if (event.type === "InventoryError") {
+        orderStatus[event.orderId] = {
+          status: "FAILED",
           details: event,
         };
       }
@@ -63,6 +74,8 @@ async function ensureTopics() {
     topics: [
       { topic: 'orders-placed', numPartitions: 1, replicationFactor: 1 },
       { topic: 'orders-confirmed', numPartitions: 1, replicationFactor: 1 },
+      { topic: 'inventory-changed', numPartitions: 1, replicationFactor: 1},
+      { topic: 'inventory-error', numPartitions: 1, replicationFactor: 1}
     ],
     waitForLeaders: true,
   });
@@ -126,4 +139,41 @@ app.get("/api/orders/:id", (req, res) => {
     status: order.status,
     details: order.details,
   });
+});
+
+// POST /api/inventory
+// body: { orderId, items: [{ productId, quantity }] }
+app.post("/api/inventory", async (req, res) => {
+  const { orderId, items, mode } = req.body || {};
+
+  if (!orderId || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({
+      error: "orderId and non-empty items array are required",
+    });
+  }
+
+  const inventoryEvent = {
+    type: "InventoryChanged",
+    orderId,
+    items,
+    placedAt: new Date().toISOString(),
+    mode
+  };
+
+  try {
+    // Publish to Kafka
+    await producer.send({
+      topic: "inventory-changed",
+      messages: [{ key: orderId, value: JSON.stringify(inventoryEvent) }],
+    });
+
+    // Return 202 Accepted to show async processing
+    res.status(202).json({
+      message: "Updating inventory, processing asynchronously",
+      orderId,
+    });
+  } catch (err) {
+    console.error("Error updating inventory:", err);
+    res.status(500).json({ error: "Failed to update inventory, service-level error" });
+  }
 });
