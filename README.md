@@ -74,6 +74,12 @@ http://localhost:3000
     npm install
     npm start
 
+### 4. Start Inventory Service
+
+    cd ../inventory-service
+    npm install
+    npm start
+
 ## How It Works
 
 1.  Open http://localhost:3000
@@ -103,6 +109,10 @@ http://localhost:3000
         package.json
 
       notification-service/
+        index.js
+        package.json
+
+      inventory-service/
         index.js
         package.json
 
